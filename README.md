@@ -48,3 +48,62 @@ Next milestone:
 See `commands.md` for startup and troubleshooting commands.
 
 See `lab_notes.md` for test results and issues encountered.
+---
+
+## Robot A — Verified Mapping Setup (November 11, 2026)
+
+Robot A's mapping pipeline was successfully restarted using a single ROS 2 launch command. The system published an occupancy-grid map on `/map`, and the map was exported successfully.
+
+### Hardware and Software
+
+- Platform: WheelTec ROSbot with NVIDIA Jetson
+- ROS distribution: ROS 2 Humble
+- LiDAR: LSLiDAR M10_P
+- Localization: robot_localization EKF
+- Mapping: SLAM Toolbox (asynchronous mode)
+- LiDAR preprocessing: custom Python scan normalizer
+
+### Startup
+
+Connect to Robot A:
+
+```bash
+ssh wheeltec@192.168.0.224
+```
+
+```
+ros2 launch ~/robot_a_all.launch.py
+```
+
+The master launcher starts the base driver, static transforms, EKF, LiDAR, scan normalizer, and SLAM Toolbox.
+
+### Verify Mapping
+
+In a second SSH terminal:
+
+```
+ros2 topic echo /map --once --field info
+```
+
+Save a map:
+
+```
+ros2 run nav2_map_server map_saver_cli -f ~/robot_a_map_verified -t /map --ros-args -p save_map_timeout:=10.0
+```
+
+### Verified Results
+
+- Map resolution: 0.05 meters per cell
+- Map dimensions: 146 x 181 cells
+- Physical map coverage: approximately 7.30 x 9.05 meters
+- Saved outputs: `robot_a/robot_a_map_verified.pgm` and `robot_a/robot_a_map_verified.yaml`
+- Scan normalizer output: 1440 readings per scan
+
+### Remaining Work
+
+- Verify startup after a complete Jetson reboot
+- Improve portability of configuration paths
+- Resolve LiDAR minimum-range warning
+- Revalidate Robot B mapping
+- Configure ROS 2 networking between both robots
+- Implement cooperative mapping and map fusion
