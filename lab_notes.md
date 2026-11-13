@@ -1,173 +1,517 @@
-# Lab Notes
 
-## Robot Information
-Robot 1 IP: 192.168.0.224  
-Robot 2 IP: 192.168.0.138  
-ROS_DOMAIN_ID: 0  
-ROS 2 version: Humble  
+# Lab Notes — Cooperative Multi-Robot Mapping
 
-## Robot 1
-LiDAR topic: /scan  
-Camera topic: /camera/color/image_raw  
-Fixed frame: map  
-SLAM package: wheeltec_slam_toolbox  
-SLAM launch: online_async_launch.py  
+**Research Project:** Cooperative Multi-Robot Mapping: A Dual-SLAM Approach via Wireless Edge Computing  
+**Institution:** University of Texas at Arlington (UTA)  
+**Laboratory:** TWIST Lab  
+**Research Advisor:** Dr. Debashri Roy  
+**Last Updated:** November 11, 2026
 
-Saved map:
-- /home/wheeltec/robotA_map.pgm
-- /home/wheeltec/robotA_map.yaml
+---
 
-RViz config:
-- /home/jetson/.rviz2/robotA.rviz
+## 1. Project Overview
 
-## Robot 2
-LiDAR topic: /scan  
-Camera topic: /rosbot2_138/color/image_raw  
-Fixed frame: map  
-SLAM package: wheeltec_slam_toolbox  
-SLAM launch: online_async_launch.py  
+The goal of this research project is to develop a cooperative multi-robot mapping system using two WheelTec mobile robots equipped with NVIDIA Jetson computers.
 
-Saved map:
-- /home/wheeltec/robotB_map.pgm
-- /home/wheeltec/robotB_map.yaml
+Each robot independently performs SLAM using ROS 2 Humble, LiDAR measurements, and odometry.
 
-RViz config:
-- /home/jetson/.rviz2/robotB.rviz
+The long-term objective is to enable both robots to:
 
-## Commands That Worked
+1. Communicate over the TWIST Lab wireless network.
+2. Exchange messages, robot positions, and sensor information.
+3. Navigate and explore their environments autonomously.
+4. Generate individual occupancy-grid maps.
+5. Share and align their maps.
+6. Combine mapping information into a common environmental representation.
 
-### Main Robot Launch
+The final map-fusion architecture, including centralized versus decentralized processing, remains to be determined.
+
+**Current project phase:** Standalone SLAM is complete for both robots. Multi-robot integration is next.
+
+---
+
+## 2. Robot Information
+
+| Property | Robot A | Robot B |
+|---|---|---|
+| IP Address | 192.168.0.224 | 192.168.0.138 |
+| SSH Username | wheeltec | wheeltec |
+| ROS Distribution | ROS 2 Humble | ROS 2 Humble |
+| Computer | NVIDIA Jetson | NVIDIA Jetson |
+| Platform | WheelTec | WheelTec |
+| LiDAR | LSLiDAR M10_P | LSLiDAR M10_P |
+| Localization | robot_localization EKF | robot_localization EKF |
+| Mapping | SLAM Toolbox | SLAM Toolbox |
+| SLAM Mode | Asynchronous | Asynchronous |
+| Unified Launch | robot_a_all.launch.py | robot_b_all.launch.py |
+| Saved Map Prefix | robot_a_map_verified | robot_b_map_verified |
+| Standalone SLAM | Complete | Complete |
+| Full Reboot Verification | Complete | Complete |
+| GitHub Backup | Complete | Complete |
+
+### Network Information
+
+**Wi-Fi:** TWIST Lab network (TWIST, not TWIST 5G)
+
+Robot B was confirmed to be using ROS domain 0 on November 11, 2026.
+
+Earlier networking tests documented that Robot A, Robot B, and the visualization Jetson used the default ROS domain 0.
+
+Robot A's current domain configuration should be verified again before multi-robot integration.
+
+---
+
+## 3. Robot A — Standalone SLAM
+
+### SSH Connection
+
 ```bash
-ros2 launch turn_on_wheeltec_robot turn_on_wheeltec_robot.launch.py
+ssh wheeltec@192.168.0.224
 ```
 
-### Sensors
+### Unified Startup
+
 ```bash
-ros2 launch turn_on_wheeltec_robot wheeltec_sensors.launch.py
+ros2 launch ~/robot_a_all.launch.py
 ```
 
-### SLAM
-```bash
-ros2 launch wheeltec_slam_toolbox online_async_launch.py
+This unified launch starts Robot A's standalone mapping pipeline, including:
+
+- WheelTec base driver
+- Required static transforms
+- IMU processing
+- EKF localization
+- LiDAR driver
+- Custom Python scan normalizer
+- Asynchronous SLAM Toolbox
+
+### Verified Map Topic
+
+```text
+/map
 ```
 
-### Keyboard Control
+### Verify Map Publication
+
 ```bash
-ros2 run wheeltec_robot_keyboard wheeltec_keyboard
+ros2 topic echo /map --once --field info
 ```
 
-### Standalone LiDAR
+### Verified Results
+
+- Standalone SLAM successfully initialized.
+- Occupancy-grid map published.
+- Map resolution: 0.05 meters per cell.
+- Recorded map dimensions: 146 x 181 cells.
+- Approximate map dimensions: 7.30 x 9.05 meters.
+- Scan normalizer output: 1440 readings per scan.
+- Map successfully saved.
+- Unified launch tested successfully after a full Jetson reboot.
+- Working configuration backed up locally and uploaded to GitHub.
+
+### Saved Map Files
+
+```text
+/home/wheeltec/robot_a_map_verified.pgm
+/home/wheeltec/robot_a_map_verified.yaml
+```
+
+Repository copies:
+
+```text
+robot_a/robot_a_map_verified.pgm
+robot_a/robot_a_map_verified.yaml
+```
+
+### Historical Robot A Configuration
+
+Earlier testing used:
+
+```text
+LiDAR topic: /scan
+Camera topic: /camera/color/image_raw
+RViz fixed frame: map
+SLAM package: wheeltec_slam_toolbox
+SLAM launch: online_async_launch.py
+```
+
+Historical map files:
+
+```text
+/home/wheeltec/robotA_map.pgm
+/home/wheeltec/robotA_map.yaml
+```
+
+Historical RViz configuration:
+
+```text
+/home/jetson/.rviz2/robotA.rviz
+```
+
+The historical paths and camera configuration have not been revalidated as part of the latest unified-launch testing.
+
+---
+
+## 4. Robot B — Standalone SLAM
+
+### SSH Connection
+
+```bash
+ssh wheeltec@192.168.0.138
+```
+
+### Unified Startup
+
+```bash
+ros2 launch ~/robot_b_all.launch.py
+```
+
+The unified launch starts:
+
+- WheelTec base driver
+- Madgwick IMU filter
+- robot_localization EKF
+- Static transform publishers
+- LSLiDAR M10_P driver
+- Python scan normalizer
+- Asynchronous SLAM Toolbox
+
+### Verified ROS Topics
+
+```text
+/robot_b/scan
+/robot_b/scan_fixed
+/robot_b/odom_combined
+/robot_b/map
+/robot_b/map_metadata
+/imu/data_raw
+/odom
+/tf
+/tf_static
+```
+
+The global topics are potential multi-robot integration concerns.
+
+### Verify LiDAR
+
+```bash
+ros2 topic hz /robot_b/scan_fixed
+```
+
+### Verify EKF Odometry
+
+```bash
+ros2 topic hz /robot_b/odom_combined
+```
+
+### Verify SLAM Map
+
+```bash
+timeout 15 ros2 topic echo /robot_b/map --once --field info
+```
+
+### Verified Results
+
+Before reboot:
+
+- EKF reached approximately 20 Hz.
+- SLAM Toolbox generated an occupancy-grid map.
+- Verified map dimensions: 178 x 168 cells.
+- Resolution: 0.05 meters per cell.
+- Map exported successfully.
+
+After reboot on November 11, 2026:
+
+- SSH connection restored successfully.
+- Unified launch started all 11 configured processes.
+- Base driver initialized.
+- LiDAR driver initialized.
+- IMU processing started.
+- EKF odometry stabilized at approximately 19.92 Hz.
+- SLAM Toolbox remained operational.
+- Map topic published successfully.
+- Post-reboot map dimensions: 144 x 168 cells.
+- Resolution: 0.05 meters per cell.
+
+The different map dimensions reflect separate mapping sessions.
+
+### Saved Map Files
+
+```text
+/home/wheeltec/robot_b_map_initial.pgm
+/home/wheeltec/robot_b_map_initial.yaml
+/home/wheeltec/robot_b_map_verified.pgm
+/home/wheeltec/robot_b_map_verified.yaml
+```
+
+The verified map was saved before the final reboot.
+
+The post-reboot map was successfully published but was not separately exported.
+
+### Verified Map-Saving Command
+
+```bash
+ros2 run nav2_map_server map_saver_cli -f ~/robot_b_map_verified --ros-args -p save_map_timeout:=15.0 -r map:=/robot_b/map
+```
+
+### Local Backup
+
+```text
+/home/wheeltec/robot_b_working_backup/
+```
+
+Files verified in the backup:
+
+```text
+lsm10_p_robot_b.yaml
+robot_b_all.launch.py
+robot_b_ekf.yaml
+robot_b_imu.yaml
+robot_b_map_initial.pgm
+robot_b_map_initial.yaml
+robot_b_map_verified.pgm
+robot_b_map_verified.yaml
+robot_b_scan_normalizer.py
+robot_b_slam.yaml
+```
+
+All 10 files were copied into the repository's `robot_b/` directory and pushed to GitHub.
+
+---
+
+## 5. Robot B — IMU and TF Troubleshooting
+
+### Problem
+
+Robot B initially experienced inconsistent EKF performance and SLAM mapping failures.
+
+Observed symptoms included:
+
+- EKF output around 2.46 Hz.
+- SLAM Toolbox not publishing a map.
+- Scan queue warnings.
+- Missing or unavailable transforms for IMU processing.
+
+### Root Cause
+
+The raw IMU topic used:
+
+```text
+/imu/data_raw
+```
+
+The message header referenced:
+
+```text
+gyro_link
+```
+
+However, the existing static transform configuration published the namespaced frame:
+
+```text
+robot_b/gyro_link
+```
+
+The missing legacy frame prevented the localization pipeline from consistently transforming the IMU measurements.
+
+### Solution
+
+Added a static transform:
+
+```text
+robot_b/base_footprint -> gyro_link
+```
+
+The existing namespaced transform was retained:
+
+```text
+robot_b/base_footprint -> robot_b/gyro_link
+```
+
+The legacy transform was added permanently to:
+
+```text
+/home/wheeltec/robot_b_all.launch.py
+```
+
+### Results
+
+After applying the fix:
+
+- EKF reached approximately 20 Hz.
+- SLAM generated maps.
+- Map saving succeeded.
+- The corrected configuration continued working after a full Jetson reboot.
+
+### Future Work
+
+The legacy `gyro_link` frame must be addressed during multi-robot TF isolation.
+
+Any changes must preserve the IMU-to-base transform relationship and be followed by EKF and SLAM verification.
+
+---
+
+## 6. Historical Robot B Troubleshooting
+
+The following problems occurred during earlier lab sessions before the current unified launch configuration.
+
+### LiDAR Problems
+
+Observed:
+
+- LiDAR crashed when launched through `wheeltec_sensors.launch.py`.
+- `/scan` initially reported zero publishers.
+- `lslidar_driver_node` sometimes exited with code -6.
+- Launching the LiDAR separately allowed scan publication.
+- LiDAR published at approximately 12 Hz.
+
+Historical standalone LiDAR command:
+
 ```bash
 ros2 launch turn_on_wheeltec_robot wheeltec_lidar.launch.py
 ```
 
-### Check LiDAR Rate
-```bash
-ros2 topic hz /scan
+The current unified launch initializes the LiDAR successfully.
+
+A minimum-range warning may still appear because the configured minimum range is 0.0 m while the LiDAR's supported minimum is approximately 0.2 m.
+
+This warning did not prevent successful mapping.
+
+### Camera Problems
+
+The generic camera topic:
+
+```text
+/camera/color/image_raw
 ```
 
-### Save Robot A Map
-```bash
-ros2 run nav2_map_server map_saver_cli -f ~/robotA_map
+previously showed no publisher on Robot B.
+
+The correct camera topic observed during earlier testing was:
+
+```text
+/rosbot2_138/color/image_raw
 ```
 
-### Save Robot B Map
+The camera stream was not revalidated during the latest unified-launch reboot test.
+
+### SLAM Problems
+
+Earlier SLAM sessions experienced:
+
+- Laser scan reading-count mismatches.
+- Delayed map publication.
+- RViz warnings.
+- Mapping failures before sensor initialization.
+
+The custom scan normalizer and corrected IMU transform resolved the principal issues encountered during the latest standalone mapping configuration.
+
+---
+
+## 7. Historical Teleoperation and RViz Testing
+
+Both robots previously completed the following tests:
+
+- SSH connection.
+- Forward movement.
+- Backward movement.
+- Left turning.
+- Right turning.
+- LiDAR access.
+- Camera access.
+- RViz visualization.
+- Individual SLAM mapping.
+- Map saving.
+
+### Historical Keyboard Command
+
 ```bash
-ros2 run nav2_map_server map_saver_cli -f ~/robotB_map
+ros2 run wheeltec_robot_keyboard wheeltec_keyboard
 ```
 
-### Jetson RViz
-```bash
-source /opt/ros/humble/setup.bash
-rviz2 -d /home/jetson/.rviz2/robotA.rviz
-rviz2 -d /home/jetson/.rviz2/robotB.rviz
+### Historical RViz Configuration Paths
+
+Robot A:
+
+```text
+/home/jetson/.rviz2/robotA.rviz
 ```
 
-## Errors / Problems
+Robot B:
 
-### Robot B LiDAR
-- LiDAR crashed when started through `wheeltec_sensors.launch.py`
-- `/scan` showed Publisher count: 0
-- `lslidar_driver_node` exited with code -6
-- Launching `wheeltec_lidar.launch.py` separately worked
-- LiDAR then published `/scan` at approximately 12 Hz
+```text
+/home/jetson/.rviz2/robotB.rviz
+```
 
-### Robot B Camera
-- `/camera/color/image_raw` had no publisher
-- Correct Robot B camera topic:
-  `/rosbot2_138/color/image_raw`
+The original notes recorded these files as present on October 26, 2026.
 
-### Robot B SLAM
-- SLAM initially showed mismatched `LaserRangeScan` reading counts
-- Restarting SLAM after the LiDAR was publishing allowed the map to appear in RViz
+The paths should be verified again before use in the current integrated system.
 
-## Completed Progress
+### Historical WheelTec Launch Commands
 
-### Robot 1
-- Connected to Robot 1 over SSH
-- Controlled Robot 1 forward, backward, left, and right
-- Accessed Robot 1 camera and LiDAR
-- Visualized Robot 1 camera and LiDAR in RViz
-- Completed single-robot SLAM for Robot 1
-- Saved Robot 1 map
-- Saved Robot 1 RViz configuration
+Base driver:
 
-### Robot 2
-- Connected to Robot 2 over SSH
-- Controlled Robot 2 forward, backward, left, and right
-- Accessed Robot 2 camera and LiDAR
-- Visualized Robot 2 camera and LiDAR in RViz
-- Completed single-robot SLAM for Robot 2
-- Saved Robot 2 map
-- Saved Robot 2 RViz configuration
+```bash
+ros2 launch turn_on_wheeltec_robot turn_on_wheeltec_robot.launch.py
+```
 
-## Saved Files Verified
+Sensors:
 
-Robot 1:
-- `/home/wheeltec/robotA_map.pgm`
-- `/home/wheeltec/robotA_map.yaml`
+```bash
+ros2 launch turn_on_wheeltec_robot wheeltec_sensors.launch.py
+```
 
-Robot 2:
-- `/home/wheeltec/robotB_map.pgm`
-- `/home/wheeltec/robotB_map.yaml`
+SLAM:
 
-Jetson:
-- `/home/jetson/.rviz2/robotA.rviz`
-- `/home/jetson/.rviz2/robotB.rviz`
+```bash
+ros2 launch wheeltec_slam_toolbox online_async_launch.py
+```
 
-All saved files were verified to still exist on October 26, 2026.
+Standalone LiDAR:
 
-## ROS 2 Networking Test
+```bash
+ros2 launch turn_on_wheeltec_robot wheeltec_lidar.launch.py
+```
 
-ROS 2 networking was successfully tested between Robot A, Robot B, and the Jetson.
+These commands are preserved as historical references.
 
-All three machines were using the default ROS domain:
+**Do not run duplicate drivers or SLAM instances alongside the current unified launch files.**
+
+---
+
+## 8. ROS 2 Networking Experiment — Completed
+
+An earlier networking experiment successfully demonstrated ROS 2 message transmission from Robot A to Robot B and the visualization Jetson.
+
+### Network Configuration
+
+All three machines were documented as using the default ROS domain:
 
 ```text
 ROS_DOMAIN_ID = 0
 ```
 
-The environment variable itself printed blank on all three systems, which means ROS 2 was using the default domain ID of 0.
+The `ROS_DOMAIN_ID` environment variable was unset, meaning ROS 2 used the default domain.
 
-### Robot A Publisher
+### Robot A — Publisher
 
-Robot A published a text message using:
+Robot A published a text message:
 
 ```bash
 ros2 topic pub /robotA_demo_message std_msgs/msg/String "{data: 'hello from robot A'}" -r 1
 ```
 
-The publisher sent the message once per second.
+The publisher transmitted at approximately one message per second.
 
-### Jetson Subscriber
+### Visualization Jetson — Subscriber
 
-On the Jetson:
+The Jetson sourced ROS 2 Humble:
 
 ```bash
 source /opt/ros/humble/setup.bash
 ```
 
-The Robot A topic was discovered with:
+The topic was discovered:
 
 ```bash
 ros2 topic list | grep robotA
@@ -179,7 +523,7 @@ Result:
 /robotA_demo_message
 ```
 
-The topic type was verified with:
+The message type was checked:
 
 ```bash
 ros2 topic type /robotA_demo_message
@@ -191,21 +535,21 @@ Result:
 std_msgs/msg/String
 ```
 
-The Jetson received the Robot A message using:
+The Jetson subscribed:
 
 ```bash
 ros2 topic echo /robotA_demo_message
 ```
 
-Received data:
+Received:
 
 ```text
 data: hello from robot A
 ```
 
-### Robot B Subscriber
+### Robot B — Subscriber
 
-Robot B also subscribed to the Robot A topic using:
+Robot B subscribed using:
 
 ```bash
 ros2 topic echo /robotA_demo_message
@@ -217,95 +561,329 @@ Robot B successfully received:
 data: hello from robot A
 ```
 
-## ROS Networking Result
+### Verified Networking Results
 
-The networking test confirmed:
+- Robot A published a ROS 2 message over TWIST Wi-Fi.
+- The visualization Jetson discovered Robot A's topic.
+- The visualization Jetson received Robot A's message.
+- Robot B discovered Robot A's topic.
+- Robot B received Robot A's message.
+- ROS 2 discovery and one-way message transmission worked across the machines using the default domain.
 
-- Robot A can publish ROS 2 topics over the lab network
-- Jetson can discover Robot A
-- Jetson can subscribe to Robot A topics
-- Robot B can discover Robot A
-- Robot B can subscribe to Robot A topics
-- Robot A, Robot B, and Jetson can communicate on the same ROS 2 domain
-- ROS 2 network discovery is working
-- ROS_DOMAIN_ID default domain 0 is working across all three machines
+### Important Limitation
 
-## Project Checklist Status
+This experiment demonstrated:
 
-### Step 1
-Connect to the robot using laptop  
-Completed
+```text
+Robot A -> Robot B
+Robot A -> Visualization Jetson
+```
 
-### Step 2
-Move robot forward, backward, and turn  
-Completed
+It did not yet demonstrate:
 
-### Step 3
-Access camera and LiDAR  
-Completed
+```text
+Robot B -> Robot A
+```
 
-### Step 4
-Visualize camera and LiDAR in RViz  
-Completed
+Bidirectional communication still requires testing.
 
-### Step 5
-Start SLAM for a single robot and visualize it in RViz  
-Completed
+The experiment also did not establish that both robots could run their complete SLAM pipelines simultaneously without topic or TF conflicts.
 
-### Step 6
-Repeat Steps 1-5 for another robot  
-Completed
+---
 
-### Step 7
-Study ROS networking and connect using ROS domain  
-Completed
+## 9. Multi-Robot Namespace and TF Audit — Pending
 
-### Step 8
-Send text message using ROS domain / ROS network  
-Completed
+Both robots have completed standalone SLAM, but their configurations have not yet been fully audited for simultaneous operation.
 
-### Step 9
-Multi-SLAM  
-Next step
+### Topics Requiring Review
 
-## Demo Readiness
+```text
+/scan
+/odom
+/imu/data_raw
+/imu/data
+/cmd_vel
+/map
+/tf
+/tf_static
+```
 
-Current demo capabilities:
+Robot B's verified pipeline already uses several namespaced topics:
+
+```text
+/robot_b/scan_fixed
+/robot_b/odom_combined
+/robot_b/map
+```
+
+However, some raw sensor and command topics remain global.
+
+### TF Frames Requiring Review
+
+```text
+map
+odom
+base_link
+base_footprint
+gyro_link
+laser
+camera_link
+```
+
+### Intended Naming Structure
+
+Examples of the planned topic organization:
+
+```text
+/robot_a/odom
+/robot_a/scan
+/robot_a/map
+
+/robot_b/odom
+/robot_b/scan
+/robot_b/map
+```
+
+These names represent the intended architecture, not a completed configuration.
+
+### Important TF Consideration
+
+ROS 2 commonly uses shared `/tf` and `/tf_static` topics.
+
+The robots must have uniquely identifiable TF frame IDs to prevent collisions.
+
+Robot B's legacy `gyro_link` frame requires particular attention.
+
+### Safety Consideration
+
+The robots must not unintentionally subscribe to each other's velocity commands.
+
+Before simultaneous operation, verify command topics, subscriptions, remappings, and the behavior of each base driver.
+
+---
+
+## 10. GitHub and Repository Backup
+
+**GitHub Username:** `benjaminventurazaldana`
+
+**Repository:**
+
+https://github.com/benjaminventurazaldana/rosbot-dual-slam
 
 ### Robot A
-1. SSH connection
-2. Keyboard teleoperation
-3. LiDAR visualization
-4. Camera visualization
-5. SLAM mapping
-6. Saved map
-7. Saved RViz configuration
+
+- Unified launch configuration saved.
+- Working configuration backed up locally.
+- Verified map files saved.
+- Repository files committed and pushed.
+- Latest Robot A commit before Robot B upload: `15b4ad1`.
 
 ### Robot B
-1. SSH connection
-2. Keyboard teleoperation
-3. LiDAR visualization
-4. Camera visualization
-5. SLAM mapping
-6. Saved map
-7. Saved RViz configuration
+
+- Unified launch configuration saved.
+- Working configuration backed up locally.
+- Verified map files saved.
+- All 10 files added to the repository.
+- Git commit completed successfully.
+- Commit pushed to `main`.
+
+Robot B commit:
+
+```text
+d42d79f — Add Robot B verified SLAM configuration and maps
+```
+
+### Local Development Environment
+
+The repository was synchronized to the Windows development computer using GitHub Desktop.
+
+Both `robot_a/` and `robot_b/` directories were visible in VS Code.
+
+Documentation changes made after this point must be committed and pushed separately.
+
+---
+
+## 11. Research Progress Checklist
+
+| Task | Robot A | Robot B |
+|---|---|---|
+| SSH connection | Complete | Complete |
+| Manual teleoperation | Complete (historical) | Complete (historical) |
+| LiDAR testing | Complete | Complete |
+| Camera testing | Complete (historical) | Complete (historical) |
+| RViz visualization | Complete (historical) | Complete (historical) |
+| IMU and EKF configuration | Complete | Complete |
+| Standalone SLAM | Complete | Complete |
+| Occupancy-grid map generated | Complete | Complete |
+| Map saved | Complete | Complete |
+| Unified launch file | Complete | Complete |
+| Full reboot verification | Complete | Complete |
+| Local backup | Complete | Complete |
+| GitHub backup | Complete | Complete |
+| Namespace isolation | Pending | Pending |
+| Simultaneous SLAM | Pending | Pending |
+| Autonomous navigation | Pending | Pending |
+| Autonomous exploration | Pending | Pending |
+| Cooperative map fusion | Pending | Pending |
+
+### Communication Progress
+
+| Communication Test | Status |
+|---|---|
+| Robot A -> Visualization Jetson | Completed (historical) |
+| Robot A -> Robot B | Completed (historical) |
+| Robot B -> Robot A | Pending |
+| Bidirectional messaging demonstration | Pending |
+| Sensor and pose sharing | Pending |
+| Map sharing | Pending |
+| Cooperative map fusion | Pending |
+
+---
+
+## 12. Current Demo Readiness
+
+### Robot A
+
+Verified standalone capabilities:
+
+1. SSH connection.
+2. Unified ROS 2 launch.
+3. LiDAR processing.
+4. EKF localization.
+5. Occupancy-grid SLAM.
+6. Saved map.
+7. Successful full reboot test.
+
+Historical capabilities requiring revalidation in the current setup:
+
+- Keyboard teleoperation.
+- Camera visualization.
+- RViz configuration loading.
+
+### Robot B
+
+Verified standalone capabilities:
+
+1. SSH connection.
+2. Unified ROS 2 launch.
+3. LiDAR processing.
+4. IMU filtering.
+5. EKF localization at approximately 20 Hz.
+6. Occupancy-grid SLAM.
+7. Saved map.
+8. Successful full reboot test.
+
+Historical capabilities requiring revalidation in the current setup:
+
+- Keyboard teleoperation.
+- Camera visualization.
+- RViz configuration loading.
 
 ### ROS Networking
-1. Robot A publishes ROS message
-2. Jetson receives Robot A message
-3. Robot B receives Robot A message
-4. All three machines communicate on ROS domain 0
 
-## Current Next Step
+Previously demonstrated:
 
-Begin Step 9: multi-robot SLAM.
+1. Robot A publishes a ROS 2 message.
+2. Visualization Jetson receives the message.
+3. Robot B receives the message.
+4. All machines discover the topic using the default ROS domain.
 
-Before running both SLAM systems together, the robot topics and TF frames need to be checked for naming collisions, especially:
+Still required:
 
-- `/scan`
-- `/odom`
-- `/map`
-- `/tf`
-- `/tf_static`
-- camera topics
-- SLAM nodes
+1. Robot B publishes to Robot A.
+2. Verify bidirectional communication with both robots online.
+3. Confirm there are no conflicting robot-control or TF topics.
+
+---
+
+## 13. Current Research Milestones
+
+### Milestone 1 — Robot A Standalone SLAM
+
+**Status: COMPLETE**
+
+Robot A can initialize its mapping pipeline, generate occupancy-grid maps, save maps, and restart successfully after reboot.
+
+### Milestone 2 — Robot B Standalone SLAM
+
+**Status: COMPLETE**
+
+Robot B can initialize its mapping pipeline, generate occupancy-grid maps, save maps, and restart successfully after reboot.
+
+### Milestone 3 — ROS 2 Communication
+
+**Status: PARTIALLY COMPLETE**
+
+Historical testing demonstrated Robot A publishing to Robot B and the visualization Jetson.
+
+Bidirectional communication and integration with the current standalone launch configurations remain pending.
+
+### Milestone 4 — Namespace and TF Isolation
+
+**Status: PENDING**
+
+Audit and correct conflicting topic names, command channels, node names, and TF frames.
+
+Preserve the working standalone configurations while making changes.
+
+### Milestone 5 — Simultaneous SLAM
+
+**Status: PENDING**
+
+Operate both robots at the same time without sensor, localization, command, or TF interference.
+
+### Milestone 6 — Autonomous Navigation and Exploration
+
+**Status: PENDING**
+
+Configure safe autonomous movement, obstacle avoidance, and autonomous environmental exploration.
+
+### Milestone 7 — Cooperative Map Sharing and Fusion
+
+**Status: PENDING**
+
+Exchange maps, align independently generated maps, and combine them into a shared environmental representation.
+
+### Milestone 8 — Final Research Demonstration
+
+**Status: PENDING**
+
+Target: April 2027.
+
+---
+
+## 14. Immediate Next Steps
+
+1. Audit Robot A's existing topics, remappings, nodes, and TF frames.
+2. Audit Robot B's existing topics, remappings, nodes, and TF frames.
+3. Identify shared names that could cause interference.
+4. Implement safe robot-specific naming and remapping.
+5. Verify standalone SLAM still works after changes.
+6. Confirm ROS domain and DDS discovery settings.
+7. Demonstrate Robot A-to-B and Robot B-to-A messaging.
+8. Capture terminal output or screenshots as evidence for Dr. Roy.
+9. Run both robots simultaneously.
+10. Begin cooperative mapping integration.
+
+**Immediate priority:** Complete bidirectional robot-to-robot messaging and obtain reproducible evidence for Dr. Roy.
+
+---
+
+## 15. Current Stopping Point — November 11, 2026
+
+Robot A and Robot B have both completed:
+
+- Standalone ROS 2 mapping configuration.
+- Unified launch setup.
+- EKF and SLAM verification.
+- Occupancy-grid map generation.
+- Map saving.
+- Full reboot verification.
+- Local configuration backups.
+- GitHub uploads.
+
+The next technical task is the multi-robot namespace and TF audit.
+
+**No multi-robot configuration changes have been made as part of this new phase.**
+
+The working standalone configurations should be preserved while multi-robot communication, simultaneous SLAM, autonomous exploration, and map fusion are developed.
