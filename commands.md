@@ -3,11 +3,11 @@
 
 **Project:** Cooperative Multi-Robot Mapping: A Dual-SLAM Approach via Wireless Edge Computing  
 **Lab:** UTA TWIST Lab — Dr. Debashri Roy  
-**Last Updated:** November 11, 2026
+**Last Updated:** November 18, 2026
 
 This document contains verified commands for Robot A and Robot B, general ROS 2 utilities, troubleshooting instructions, and legacy commands from earlier lab sessions.
 
-**Important:** Both robots have completed standalone SLAM configuration and reboot verification. Multi-robot namespace isolation and communication testing are still pending.
+**Important (November 18):** Simultaneous independent SLAM, cross-robot map topic sharing, manually guided lab mapping, and experimental offline fusion were demonstrated. Ground-truth registration validation, robust TF integration, and autonomy remain pending. Older sections are retained for historical procedures; use the newest workflow below for current topic names.
 
 ---
 
@@ -19,7 +19,7 @@ This document contains verified commands for Robot A and Robot B, general ROS 2 
 | SSH Username | `wheeltec` | `wheeltec` |
 | ROS Version | ROS 2 Humble | ROS 2 Humble |
 | Unified Launch | `~/robot_a_all.launch.py` | `~/robot_b_all.launch.py` |
-| Map Topic | `/map` | `/robot_b/map` |
+| Map Topic | `/robot_a/map` | `/robot_b/map` |
 | Saved Map | `robot_a_map_verified` | `robot_b_map_verified` |
 | Standalone SLAM | Verified | Verified |
 | Reboot Test | Passed | Passed |
@@ -769,4 +769,125 @@ Do not commit credentials, personal access tokens, SSH private keys, or other se
 9. Develop cooperative map alignment and fusion.
 10. Complete the integrated research demonstration.
 
-**Current stopping point:** Both standalone robot configurations are complete, reboot-tested, and backed up. Multi-robot integration has not yet begun.
+**Historical stopping point (November 11):** Both standalone robot configurations were complete, reboot-tested, and backed up. See the November 18 workflow below for the subsequent simultaneous mapping and offline fusion milestone.
+---
+
+## November 18, 2026 — Verified dual-SLAM workflow (most recent)
+
+**Use current namespaced topics.** Earlier commands elsewhere in this document may use historical `/map` or legacy TF references. November 18 verified Robot A as `/robot_a/map`, Robot B as `/robot_b/map`. Do not use old November 16 hard-coded alignment numbers for the new mapping session.
+
+### Terminal assignments and startup
+
+On separate SSH terminals (left = Robot A, right = Robot B):
+
+**Robot A — Tab 1**
+```bash
+ssh wheeltec@192.168.0.224
+source /opt/ros/humble/setup.bash
+ros2 launch ~/robot_a_all.launch.py
+```
+
+**Robot B — Tab 1**
+```bash
+ssh wheeltec@192.168.0.138
+source /opt/ros/humble/setup.bash
+ros2 launch ~/robot_b_all.launch.py
+```
+
+Launchers must remain active while mapping. Use separate Tab 2 SSH sessions for diagnostic commands and map saving. Movement must be supervised, on clear paths, with the operator able to stop the robots.
+
+### Teleoperation (historically verified during November 18)
+
+**Robot A — Tab 2**
+```bash
+ssh wheeltec@192.168.0.224
+source /opt/ros/humble/setup.bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/robot_a/cmd_vel
+```
+
+**Robot B — Tab 2**
+```bash
+ssh wheeltec@192.168.0.138
+source /opt/ros/humble/setup.bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/cmd_vel
+```
+
+Robot B's global `/cmd_vel` subscription needs future namespace isolation; **do not assume the remapping is safe if the robot topology changes**. In teleop: `i` forward, `,` reverse, `j` left, `l` right, `k` stop, `x` decrease speed, Ctrl+C exit. Stop the robot before leaving its controller.
+
+### Save both maps to Robot A (Tab 2)
+
+The November 18 session demonstrated Robot A could subscribe to both map topics over ROS 2. Saving through Robot A creates a common session folder. If network discovery is unavailable, save each map on its own robot and transfer it afterwards.
+
+```bash
+ssh wheeltec@192.168.0.224
+source /opt/ros/humble/setup.bash
+mkdir -p ~/rosbot-dual-slam/maps/live_session_nov18
+
+# Save a new Robot A mapping session under a unique prefix:
+ros2 run nav2_map_server map_saver_cli \
+  -t /robot_a/map \
+  -f ~/rosbot-dual-slam/maps/live_session_nov18/robot_a_retry \
+  --ros-args -p save_map_timeout:=15.0 \
+  -p map_subscribe_transient_local:=false
+
+ros2 run nav2_map_server map_saver_cli \
+  -t /robot_b/map \
+  -f ~/rosbot-dual-slam/maps/live_session_nov18/robot_b_final \
+  --ros-args -p save_map_timeout:=15.0 \
+  -p map_subscribe_transient_local:=false
+
+ls -lh ~/rosbot-dual-slam/maps/live_session_nov18/
+```
+
+**For future sessions, change the directory and file prefixes** so that prior datasets are not overwritten. The exact saved November 18 inputs are already committed; there is no need to regenerate them.
+
+### Inspect map metadata, EKF and topic health
+
+```bash
+cat ~/rosbot-dual-slam/maps/live_session_nov18/robot_a_retry.yaml
+cat ~/rosbot-dual-slam/maps/live_session_nov18/robot_b_final.yaml
+ros2 topic info /robot_a/odom_combined -v
+ros2 topic echo /robot_a/odom_combined --once
+ros2 topic echo /robot_a/odom --once
+ros2 topic echo /robot_a/imu/data_raw --once
+ros2 topic echo /robot_a/map --once --field info
+ros2 topic echo /robot_b/map --once --field info
+```
+
+Only run live topic checks when the corresponding robot launchers are active. Raw wheel odometry and filtered EKF odometry are different coordinate frames, so comparing their XY coordinates directly does not establish drift. During the original Robot A run, anomalously large EKF covariance and a fragmented map were observed; diagnosis remains open.
+
+### Offline fusion using committed November 18 maps
+
+On Robot A or an equivalent Linux environment, with checkout under `/home/wheeltec/rosbot-dual-slam`, NumPy, SciPy, PyYAML, and OpenCV installed:
+
+```bash
+cd /home/wheeltec
+python3 -u ~/rosbot-dual-slam/scripts/dual_slam_fusion_nov18.py
+```
+
+Expected output names under `/home/wheeltec/`:
+```text
+dual_slam_nov18_alignment.png
+dual_slam_nov18_fused_preview.png
+dual_slam_nov18_fused_map.pgm
+dual_slam_nov18_fused_map.yaml
+```
+
+The committed output copies are in `maps/live_session_nov18/fusion/`. The script's absolute `HOME` constant must be adapted to run elsewhere. Registration results from this session: **−17.50°**, **(−0.050, +0.500) m**, **0.0898 conflict**, **32,183 known overlapping cells**. These are experimental diagnostics, not validated transform accuracy.
+
+### Verify Git backup before shutdown
+
+```bash
+cd ~/rosbot-dual-slam
+git status -sb
+git log -1 --oneline
+```
+
+November 18 dataset commit: `729aad6`, successfully pushed to `main`. Stop launchers in Tab 1 using Ctrl+C, then shut down each robot through SSH if finished:
+
+```bash
+sudo shutdown -h now
+```
+
+This workflow does **not** deploy a validated inter-robot TF link and does **not** enable autonomous navigation.
+
