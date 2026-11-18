@@ -5,9 +5,11 @@
 **Institution:** University of Texas at Arlington (UTA)  
 **Laboratory:** TWIST Lab  
 **Research Advisor:** Dr. Debashri Roy  
-**Last Updated:** November 11, 2026
+**Last Updated:** November 18, 2026
 
 ---
+
+**Latest research status:** November 18 independent mapping and experimental offline fusion completed; see the dated session log at the end of this file. Older “current” or “pending” statements below are preserved as **historical snapshots**, not the current status.
 
 ## 1. Project Overview
 
@@ -887,3 +889,77 @@ The next technical task is the multi-robot namespace and TF audit.
 **No multi-robot configuration changes have been made as part of this new phase.**
 
 The working standalone configurations should be preserved while multi-robot communication, simultaneous SLAM, autonomous exploration, and map fusion are developed.
+---
+
+## November 18, 2026 — Simultaneous mapping, Robot A recovery, and offline fusion
+
+**Operator context:** Two WheelTec robots were parked near the shared laboratory doorway, facing approximately parallel at startup. Robot A was positioned on the right and Robot B on the left, separated by approximately 29 in (0.7366 m) center-to-center. Exploration was through supervised keyboard teleoperation, **not autonomous exploration**.
+
+**Robot endpoints / topics**
+- Robot A: `ssh wheeltec@192.168.0.224`, launcher `ros2 launch ~/robot_a_all.launch.py`, map `/robot_a/map`, odometry `/robot_a/odom_combined`, teleop `/robot_a/cmd_vel`.
+- Robot B: `ssh wheeltec@192.168.0.138`, launcher `ros2 launch ~/robot_b_all.launch.py`, map `/robot_b/map`, odometry `/robot_b/odom_combined`. The base driver was observed subscribing to global `/cmd_vel`; this needs namespace isolation review.
+- Both robots ran independent mapping stacks at the same time and were able to exchange ROS map data through the shared network. This is not proof that the independent TF trees were correctly linked.
+
+### Mapping results and recovery
+
+| Map | Grid dimensions | Resolution | Known cells / observations |
+|---|---:|---:|---|
+| Robot A first attempt | 811 × 1122 | 0.05 m/cell | 85,940 free; 6,462 occupied; ~10.15% known; badly fragmented geometry |
+| Robot A retry | 204 × 162 | 0.05 m/cell | Coherent room boundaries and recognizable obstacles in visual inspection |
+| Robot B final | 218 × 221 | 0.05 m/cell | 18,378 free; 1,771 occupied; ~41.82% known; coherent room outline |
+
+Robot A's original saved map showed disconnected scan clusters over very large map bounds. Its EKF `/robot_a/odom_combined` at the end of the first run reported approximately `x=18.29, y=11.31` and unusually high X/Y pose covariance diagonals (~80,520 and ~169,463 m²). Raw wheel odometry at one sample reported `x=0.16, y=-2.83, z=3.81`, which was suspicious for a ground robot; different odometry frames make the positions themselves non-directly-comparable.
+
+The active Robot A EKF YAML was `/home/wheeltec/robot_a_ekf.yaml`, with `two_d_mode: true`, wheel odometry `/robot_a/odom`, and IMU `/robot_a/imu/data_raw`. IMU samples contained orientation and yaw-rate data; sporadic EKF update-rate warnings were observed. **No root cause was proven and no EKF YAML change was made as part of this recovery.**
+
+After stopping the Robot A launcher, manually repositioning Robot A, and restarting `~/robot_a_all.launch.py`, its stationary EKF pose remained zero. Robot A then completed another manual lab route; near its returned starting location, EKF pose read `x=-0.0648, y=-0.0507, z=0`. Returning close to the origin is encouraging but is **not** sufficient proof of odometry accuracy.
+
+The successful retry was saved separately under `robot_a_retry`. The earlier distorted map was deliberately retained, not overwritten.
+
+### Offline map registration (November 18)
+
+Input files:
+- `maps/live_session_nov18/robot_a_retry.pgm` and `.yaml`
+- `maps/live_session_nov18/robot_b_final.pgm` and `.yaml`
+
+Versioned script: `scripts/dual_slam_fusion_nov18.py`. The search is coarse-to-fine over rotation and translation with a *soft* preference around 0° rotation and (0, +0.7366 m) relative offset, derived from the robots' approximate starting arrangement. Its search can choose values outside that prior.
+
+Actual algorithm result:
+
+```text
+Rotation B -> A: -17.50 degrees
+Translation B -> A: (-0.050, 0.500) m
+Obstacle proximity: 0.7191
+Conflict ratio: 0.0898
+Known overlap: 32183 cells
+Registration score: 1.5436
+```
+
+The alignment overlay shows many matching exterior walls and interior obstacles, plus localized wall offsets and raster artifacts. This is **promising but not ground-truth validated**. The fused grid is experimental and must not be used as a navigation or safety map.
+
+Output files:
+- `maps/live_session_nov18/fusion/dual_slam_nov18_alignment.png`
+- `maps/live_session_nov18/fusion/dual_slam_nov18_fused_preview.png`
+- `maps/live_session_nov18/fusion/dual_slam_nov18_fused_map.pgm`
+- `maps/live_session_nov18/fusion/dual_slam_nov18_fused_map.yaml`
+
+Original maps, old fusion scripts, and experimental November 16 artifacts remain preserved. The fusion run did **not** publish TF or alter running ROS nodes.
+
+### Reproducibility and backup
+
+With this repo in `/home/wheeltec/rosbot-dual-slam` and required Python packages installed:
+
+```bash
+cd /home/wheeltec
+python3 -u ~/rosbot-dual-slam/scripts/dual_slam_fusion_nov18.py
+```
+
+The script has a hard-coded `/home/wheeltec` base path; adapt for other machines. Original November 18 mapping data and the script were pushed to `main` as **`729aad6`**. Both robots were safely shut down after backups.
+
+### Follow-up tasks
+1. Validate B→A transform with measured physical landmarks and overlap/conflict inspection.
+2. Diagnose the original Robot A mapping/EKF failure and repeat a short controlled-motion test as necessary.
+3. Audit namespaced TF and velocity command topics; avoid reintroducing global frame conflicts.
+4. Add a validated transform and robust automatic registration to live fusion.
+5. Add quantitative evaluation, repeatable procedures, and eventually autonomous navigation/exploration.
+
