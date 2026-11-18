@@ -9,9 +9,9 @@ Undergraduate research project at the University of Texas at Arlington (UTA), co
 
 ## 1. Project Status
 
-**Last updated:** November 11, 2026
+**Last updated:** November 18, 2026
 
-Both robots have completed standalone SLAM configuration, testing, reboot verification, and GitHub backups.
+Both robots have completed standalone SLAM and a simultaneous manually teleoperated mapping session. Cross-robot map-topic sharing and experimental offline map fusion have been demonstrated; accuracy validation and live fusion remain pending.
 
 ### Completed
 
@@ -40,10 +40,56 @@ Previous lab sessions also included keyboard teleoperation, camera testing, and 
 - Exchange robot positions, sensor data, and maps
 - Configure autonomous navigation and obstacle avoidance
 - Implement autonomous exploration
-- Implement cooperative map alignment and fusion
+- Validate and improve experimental cooperative map alignment and fusion
 - Complete integrated testing and final demonstration
 
-**Current milestone:** Standalone SLAM completed for both robots. Multi-robot integration is the next phase.
+**Current milestone:** Simultaneous independent SLAM and experimental offline fusion completed. Ground-truth alignment validation and robust live fusion are next.
+
+## Current milestone — November 18, 2026
+
+**Status:** Two independent robot mapping sessions and an **experimental offline fused occupancy map** have been saved to GitHub (commit `729aad6`). The fused map is a research candidate; its alignment has **not** been validated against surveyed landmarks or ground truth, and it is **not suitable for autonomous navigation**.
+
+- Robot A (leader; `192.168.0.224`) and Robot B (follower; `192.168.0.138`) ran their individual SLAM pipelines simultaneously on the TWIST Lab wireless network.
+- Robot A subscribed to `/robot_a/map` and `/robot_b/map` across the ROS 2 network. This demonstrates map-topic sharing; a fully validated shared TF tree and bidirectional application-level messaging are still separate tasks.
+- Both robots were **manually teleoperated** through the laboratory. Autonomous exploration has **not** been implemented.
+- Robot A's first November 18 map was distorted (811 × 1122 cells). After restarting its localization/SLAM launcher and repeating the route, its saved retry map became coherent (204 × 162 cells).
+- Robot B's saved map was 218 × 221 cells. Both use 0.05 m/cell resolution.
+- Offline registration of `robot_a_retry` and `robot_b_final` estimated rotation B→A **−17.50°**, translation **(−0.050, +0.500) m**, obstacle proximity **0.7191**, conflict ratio **0.0898**, known overlap **32,183 cells**, and algorithm score **1.5436**. These are algorithm-specific diagnostics, not calibrated accuracy measurements.
+- Starting layout was approximately parallel, Robot B to Robot A's left, with measured 29 in (~0.7366 m) center-to-center separation. This informed a **soft initial registration preference**, not a fixed transform constraint; the best-fit −17.5° rotation needs independent validation.
+
+### November 18 artifacts
+
+| Artifact | Repository path |
+|---|---|
+| Robot A successful map | `maps/live_session_nov18/robot_a_retry.pgm` and `.yaml` |
+| Robot B map | `maps/live_session_nov18/robot_b_final.pgm` and `.yaml` |
+| Robot A failed first attempt (retained for diagnosis) | `maps/live_session_nov18/robot_a_final.pgm` and `.yaml` |
+| Fusion overlay and preview | `maps/live_session_nov18/fusion/dual_slam_nov18_alignment.png`, `dual_slam_nov18_fused_preview.png` |
+| Experimental ROS-compatible fused grid | `maps/live_session_nov18/fusion/dual_slam_nov18_fused_map.pgm` and `.yaml` |
+| Reproduction script | `scripts/dual_slam_fusion_nov18.py` |
+
+### Reproduce November 18 offline fusion
+
+On a ROS robot/Ubuntu system with Python 3, NumPy, OpenCV, SciPy, and PyYAML, and with this repository cloned at `/home/wheeltec/rosbot-dual-slam`:
+
+```bash
+cd /home/wheeltec
+python3 -u ~/rosbot-dual-slam/scripts/dual_slam_fusion_nov18.py
+```
+
+The script uses fixed absolute paths and writes `dual_slam_nov18_*.png`, `.pgm`, and `.yaml` to `/home/wheeltec/`. Running it from other systems requires adapting the `HOME` constant and map paths. The committed copies in `maps/live_session_nov18/fusion/` preserve the experiment as performed.
+
+### Next research steps
+
+1. Measure shared landmarks and independently validate/refine the B→A map transform; verify the duplicated/offset boundaries visible in overlays.
+2. Investigate Robot A's EKF and odometry divergence during the first run (previously very large X/Y position covariance, EKF update-rate warnings). The cause was **not established**.
+3. Make the fusion script portable and report registration quality against ground truth or other quantitative reference measurements.
+4. Integrate a validated transform into live/periodic map fusion; do not reuse November 16's hard-coded live-fusion transform for this session.
+5. Continue frame/topic isolation, bidirectional communication validation, and (later) autonomous navigation and exploration.
+
+**Historical note:** Older sections below document the state of the project *at the time they were written*. Any older “pending” statements for simultaneous mapping, topic sharing, or initial offline fusion are superseded by the November 18 milestone above. Live validated fusion and autonomous exploration remain pending.
+
+---
 
 ## 2. Robot Information
 
@@ -213,7 +259,7 @@ During testing, Robot B's raw IMU messages used the frame ID `gyro_link`, while 
 
 This mismatch prevented the EKF and SLAM pipeline from operating correctly.
 
-A legacy transform from `robot_b/base_footprint` to `gyro_link` was added to the unified launch file.
+Historically, a legacy transform from `robot_b/base_footprint` to `gyro_link` was added. Later testing corrected Robot B's IMU frame to the namespaced `robot_b/gyro_link` and removed the legacy transform; confirm the active files when deploying.
 
 After the fix:
 
@@ -221,11 +267,11 @@ After the fix:
 - SLAM Toolbox generated occupancy-grid maps
 - The corrected launch configuration worked after a full reboot
 
-This legacy frame must be reviewed during multi-robot TF isolation to prevent naming conflicts.
+The previously used legacy `gyro_link` frame was addressed in later testing. Continue auditing namespaced TF frames during multi-robot integration.
 
 ## 6. ROS 2 Networking and Multi-Robot Integration
 
-Multi-robot integration has not yet been completed.
+Multi-robot integration is **in progress**: simultaneous independent SLAM and cross-robot map-topic sharing have been demonstrated, but a validated shared TF transform and robust live fusion are not completed.
 
 Robot B was confirmed to use ROS domain ID 0 during standalone testing. Robot A's current domain setting still needs to be verified.
 
@@ -295,7 +341,7 @@ Afterward, extend communication to robot poses, mapping information, and other r
 
 ### Immediate Priority
 
-Complete the multi-robot namespace audit and establish bidirectional ROS 2 communication between Robot A and Robot B.
+Validate the November 18 offline fused-map alignment and investigate Robot A's prior EKF/SLAM failure before advancing live fusion.
 
 ### Longer-Term Research Goals
 
@@ -319,7 +365,7 @@ The final architecture for centralized versus decentralized map fusion remains t
 - Configuration paths may require portability improvements
 - Camera and RViz functionality require revalidation in the integrated setup
 - Autonomous navigation and exploration are not yet configured
-- Cooperative map fusion has not yet been implemented
+- Experimental offline cooperative map fusion is implemented; independent validation and live fusion are pending
 
 These issues do not invalidate the completed standalone SLAM tests.
 
@@ -343,7 +389,7 @@ Robot B's verified configuration was uploaded in commit `d42d79f` on November 11
 
 ---
 
-**Current research phase:** Transitioning from independently verified SLAM systems to cooperative multi-robot communication, autonomous exploration, and map fusion.
+**Current research phase (November 18):** Simultaneous mapping and experimental offline fusion demonstrated; validation, robust live integration, and autonomous exploration remain pending.
 
 ---
 
