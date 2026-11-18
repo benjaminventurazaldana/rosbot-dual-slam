@@ -32,6 +32,7 @@ def generate_launch_description():
                 'usart_port_name': '/dev/wheeltec_controller',
                 'serial_baud_rate': 115200,
                 'robot_frame_id': 'robot_b/base_footprint',
+                'gyro_frame_id': 'robot_b/gyro_link',
                 'odom_frame_id': 'robot_b/odom_combined',
                 'cmd_vel': 'cmd_vel',
                 'akm_cmd_vel': 'none',
@@ -71,8 +72,6 @@ def generate_launch_description():
             'robot_b/base_footprint',
             'robot_b/base_link'
         ),
-        static_tf(
-            'robot_b_base_to_gyro_legacy', [0, 0, 0], 'robot_b/base_footprint', 'gyro_link'),
         static_tf(
             'robot_b_base_to_gyro',
             [0, 0, 0],
