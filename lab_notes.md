@@ -5,11 +5,11 @@
 **Institution:** University of Texas at Arlington (UTA)  
 **Laboratory:** TWIST Lab  
 **Research Advisor:** Dr. Debashri Roy  
-**Last Updated:** November 18, 2026
+**Last Updated:** November 26, 2026
 
 ---
 
-**Latest research status:** November 18 independent mapping and experimental offline fusion completed; see the dated session log at the end of this file. Older “current” or “pending” statements below are preserved as **historical snapshots**, not the current status.
+**Latest research status:** November 26 is the final planned data collection, with archived individual and combined ROS bags, offline registration and live fused occupancy-grid preview demonstrated. See the November 26 entry at the end of this file and `docs/nov26_experiment.md`. Earlier “current” and “pending” statements are historical.
 
 ## 1. Project Overview
 
@@ -963,3 +963,62 @@ The script has a hard-coded `/home/wheeltec` base path; adapt for other machines
 4. Add a validated transform and robust automatic registration to live fusion.
 5. Add quantitative evaluation, repeatable procedures, and eventually autonomous navigation/exploration.
 
+
+---
+
+## November 26, 2026 — Final planned experimental recording and live fusion
+
+### Test goal and setup
+This session collected the final planned robot sensor/mapping data for the dual-SLAM study and demonstrated a periodic combined occupancy-grid preview. Robot A (192.168.0.224, right/leader) and Robot B (192.168.0.138, left/follower) started approximately parallel with measured 29 in (0.7366 m) center-to-center separation. Each ran its own ROS 2 Humble unified SLAM launch, custom normalized LiDAR, odometry/IMU/EKF and SLAM Toolbox. Motion was supervised, manual and sequential rather than autonomous.
+
+Cross-robot LiDAR discovery was verified both ways: Robot A received `/robot_b/scan_fixed` headers, and Robot B received `/robot_a/scan_fixed` headers. Each occupancy-grid map topic was visible on Robot A and updated at about 0.2 Hz. Each robot had valid local map-to-laser transforms, but `robot_a/map` to `robot_b/laser` failed due to disconnected TF trees.
+
+### Archived source dataset
+
+- Robot A LiDAR bag: `datasets/nov26/robot_a_lidar_20261126/` (~14,429 messages, ~64.6 MiB).
+- Robot B LiDAR bag: `datasets/nov26/robot_b_lidar_20261126/` (~33,000 messages, ~60.5 MiB). **Noman's original Robot B scan source is `/robot_b/scan`; processed counterpart is `/robot_b/scan_fixed`.**
+- Simultaneous/combined ROS 2 bag: `datasets/nov26/dual_slam_combined_20261126/`, duration ~12 min 12 sec, ~459.6 MiB, 81,152 messages, 12 topics.
+- Robot A exported occupancy map: `datasets/nov26/dual_slam_nov26_maps/robot_a.pgm` and `.yaml`, 208 × 161 at 0.05 m/cell.
+- Robot B exported occupancy map: `datasets/nov26/dual_slam_nov26_maps/robot_b.pgm` and `.yaml`, 206 × 171 at 0.05 m/cell.
+
+Recordings were committed with Git LFS (`*.db3`); the dataset was merged into `main` via PR #2. No more mapping runs are currently scheduled. The archived bags, not reconstructed or newly recorded data, are the planned basis for subsequent offline analysis and Noman's use.
+
+### November 26 offline map registration
+
+`scripts/dual_slam_fusion_nov26.py` reads the two exported map pairs from `datasets/nov26/dual_slam_nov26_maps/` relative to the working directory, evaluates rotations/translations with a soft preference from the approximate starting separation, and writes alignment and fused-map products.
+
+```text
+Estimated B -> A rotation: -2.50 degrees
+Estimated B -> A translation: (0.000, +0.700) m
+Obstacle proximity metric: 0.8262
+Conflict ratio metric: 0.0418
+Known overlapping cells: 32,814
+Algorithm registration score: 1.8383
+```
+
+The outputs `results/nov26/dual_slam_nov26_alignment.png`, `dual_slam_nov26_fused_preview.png`, `dual_slam_nov26_fused_map.pgm` and `.yaml` were merged via PR #3. Visual overlap is encouraging but not independent alignment ground truth; score units and definitions come from the script.
+
+### November 26 live fusion test
+
+`scripts/dual_slam_live_fusion_nov26.py` was run on Robot A after transferring the script there. It subscribed to `/robot_a/map` and `/robot_b/map`, applied the current experiment's fixed B→A transform (−2.5°, 0.000 m, +0.700 m), and published `/dual_slam/fused_map_preview` every five seconds in `robot_a/map` frame. RViz showed a 480 × 480 grid with 0.05 m/cell resolution.
+
+An observed small, supervised turn of Robot A with Robot B stationary was followed by an increase in the live preview's logged known-cell and occupied-cell counts:
+
+| Metric | Before movement | After movement | Difference |
+|---|---:|---:|---:|
+| Known cells | 21,278 | 22,344 | +1,066 |
+| Occupied cells | 1,826 | 1,860 | +34 |
+
+The output before motion was archived as `results/nov26/live_fused_map.pgm` and `.yaml`, and the output after motion as `results/nov26/live_fused_map_after_movement.pgm` and `.yaml`. Both saved maps are 480 × 480 cells at 0.05 m/cell. A change in counts after robot motion supports a live response, but is not sufficient to independently establish alignment accuracy, map-cell freshness or exact attribution to source inputs. The captured files permit offline cellwise comparison.
+
+The session ended with stopping the live-fusion process, successful transfer of results to Windows, GitHub PR #3 merged into `main` (merge commit `a20533b`), laptop `main` fast-forwarded, and safe shutdown of Robot A and Robot B.
+
+### Interpretation and remaining offline research
+
+**Demonstrated:** Independent simultaneous SLAM, Wi-Fi cross-robot scan and map access, recorded sensors, exported maps, experimental offline registration, periodic fused-grid publishing, RViz visualization, and a live-update test.
+
+**Not demonstrated or validated:** A common cross-robot TF tree, ground-truth accuracy, automatic live recalibration, stale-input handling, autonomous exploration, or navigation-ready obstacle mapping. This is an occupancy-grid fusion prototype, *not* a single distributed SLAM estimator or raw LiDAR-fusion optimizer.
+
+**Next analytical tasks without remapping the laboratory:** reproduce offline alignment from committed inputs, quantify differences between the two saved live grids, seek an independent reference for transform error if available, document reproducibility and limitations, and incorporate results into the five-page conference paper due December 6, 2026. RF B210 work belongs to Noman and Gaurav; it is not part of the current data/software record.
+
+Detailed dataset paths, runtime commands and caveats: `docs/nov26_experiment.md`.

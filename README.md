@@ -7,9 +7,47 @@ Undergraduate research project at the University of Texas at Arlington (UTA), co
 
 **Research Goal:** Develop a cooperative mapping system in which two ROS 2 mobile robots independently collect sensor data, communicate over a wireless network, and eventually combine their maps into a shared environmental representation.
 
-## 1. Project Status
+# November 26, 2026 — Final Planned Experimental Dataset and Live Fusion Milestone
 
-**Last updated:** November 18, 2026
+**Current authoritative status (supersedes older dated status entries below).** The November 26 laboratory session is the **final planned data-collection and mapping session** for the current experiment. Robot A and Robot B performed independently running SLAM during supervised manual teleoperation. Their sensor recordings, simultaneous combined ROS bag, final exported occupancy maps, offline registration outputs, and live-fusion snapshots are versioned in this repository.
+
+**Research scope:** This is a working **live occupancy-grid fusion prototype**, **not** a ground-truth-validated mapping or autonomous navigation system. Live fusion consumes the two robots' independently generated maps; it does not perform online joint SLAM optimization, publish the missing inter-robot TF transform, or fuse raw scans directly.
+
+## Start here: November 26 dataset
+
+| Resource | Location / description |
+|---|---|
+| Robot A recorded LiDAR | `datasets/nov26/robot_a_lidar_20261126/` |
+| Robot B recorded LiDAR — Noman's data source | `datasets/nov26/robot_b_lidar_20261126/` |
+| Combined 12 min 12 sec ROS bag | `datasets/nov26/dual_slam_combined_20261126/` — 81,152 messages, 12 topics, approximately 459.6 MiB |
+| Robot A exported map | `datasets/nov26/dual_slam_nov26_maps/robot_a.pgm` and `.yaml` — 208 × 161, 0.05 m/cell |
+| Robot B exported map | `datasets/nov26/dual_slam_nov26_maps/robot_b.pgm` and `.yaml` — 206 × 171, 0.05 m/cell |
+| Offline registration and fusion | `scripts/dual_slam_fusion_nov26.py` |
+| Live occupancy-grid fusion | `scripts/dual_slam_live_fusion_nov26.py` |
+| Offline overlay, map and visualizations | `results/nov26/dual_slam_nov26_*` |
+| Saved live map before movement | `results/nov26/live_fused_map.pgm` and `.yaml` |
+| Saved live map after movement | `results/nov26/live_fused_map_after_movement.pgm` and `.yaml` |
+| Detailed reproducibility, results, limitations | [November 26 experiment guide](docs/nov26_experiment.md) |
+| Commands, procedures and historic sessions | [commands.md](commands.md) and [lab_notes.md](lab_notes.md) |
+
+**For Noman:** The original Robot B raw LaserScan topic is **`/robot_b/scan`**; the normalized scan is **`/robot_b/scan_fixed`**. The dedicated Robot B bag is in `datasets/nov26/robot_b_lidar_20261126/`. The combined bag also contains Robot B scan topics. Bag `.db3` objects use Git LFS: clone with Git LFS installed and run `git lfs pull` to obtain the actual recordings rather than pointer files.
+
+## Verified November 26 results
+
+- Bidirectional ROS 2 LiDAR topic visibility across the shared Wi-Fi network; each robot continued running its own SLAM instance.
+- Both occupancy-grid topics, `/robot_a/map` and `/robot_b/map`, published at approximately 0.2 Hz.
+- Offline B-to-A map alignment estimate: **−2.50°**, translation **(0.000, +0.700) m**; obstacle proximity **0.8262**, conflict ratio **0.0418**, known overlap **32,814 cells**, registration score **1.8383**. These are algorithm-defined registration diagnostics, **not physical alignment accuracy or independent ground truth**.
+- The live node subscribed to both maps, published a fused 480 × 480 occupancy grid at 0.05 m/cell on `/dual_slam/fused_map_preview` approximately every five seconds, and the output was displayed in RViz with fixed frame `robot_a/map`.
+- Following a small, supervised Robot A turn, the live fusion's logged known-cell count changed from **21,278 to 22,344** and occupied-cell count from **1,826 to 1,860**. Before/after PGM+YAML snapshots were saved. This supports that the live output responded during the test; counts alone do not prove exact cellwise agreement, freshness, alignment accuracy, or both robots' contributions.
+- Both robots were safely stopped and shut down after maps and recordings were backed up. November 26 raw datasets were merged in PR #2; fusion code and outputs were merged in PR #3 (merge commit `a20533b`).
+
+**Outstanding for the research paper:** Independently evaluate alignment accuracy, reproducibly rerun the offline pipeline on the archived maps, inspect the before/after grid differences, characterize source freshness and TF separation, and accurately report limitations. No additional laboratory mapping session is currently planned. The earlier November 13/18 material below remains as **historical context**; older “pending” lists and older estimated transforms must not be interpreted as current November 26 results.
+
+---
+
+## 1. Historical project status (through November 18)
+
+**Last updated:** November 26, 2026
 
 Both robots have completed standalone SLAM and a simultaneous manually teleoperated mapping session. Cross-robot map-topic sharing and experimental offline map fusion have been demonstrated; accuracy validation and live fusion remain pending.
 

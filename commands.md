@@ -3,11 +3,111 @@
 
 **Project:** Cooperative Multi-Robot Mapping: A Dual-SLAM Approach via Wireless Edge Computing  
 **Lab:** UTA TWIST Lab — Dr. Debashri Roy  
-**Last Updated:** November 18, 2026
+**Last Updated:** November 26, 2026
 
 This document contains verified commands for Robot A and Robot B, general ROS 2 utilities, troubleshooting instructions, and legacy commands from earlier lab sessions.
 
 **Important (November 18):** Simultaneous independent SLAM, cross-robot map topic sharing, manually guided lab mapping, and experimental offline fusion were demonstrated. Ground-truth registration validation, robust TF integration, and autonomy remain pending. Older sections are retained for historical procedures; use the newest workflow below for current topic names.
+
+---
+
+## November 26 — Final archived experiment: current reference
+
+**The material below this section includes historical workflows and older topic names.** For November 26 results and exact artifacts, see [docs/nov26_experiment.md](docs/nov26_experiment.md). The final planned data collection was completed and both robots were shut down; no additional mapping is currently planned. These startup procedures are recorded for reproducibility, **not** a request to restart the experiment.
+
+### Robot A — Tab 1: unified SLAM launch (historical run)
+
+```bash
+ssh wheeltec@192.168.0.224
+source /opt/ros/humble/setup.bash
+ros2 launch ~/robot_a_all.launch.py
+```
+
+### Robot B — Tab 1: unified SLAM launch (historical run)
+
+```bash
+ssh wheeltec@192.168.0.138
+source /opt/ros/humble/setup.bash
+ros2 launch ~/robot_b_all.launch.py
+```
+
+### Verify both maps and cross-robot LiDAR (historical run)
+
+**Robot A — Tab 2** (separate SSH session to Robot A after source setup):
+
+```bash
+ros2 topic hz /robot_a/map
+ros2 topic hz /robot_b/map
+ros2 topic echo /robot_b/scan_fixed --once --field header
+ros2 topic info /robot_a/cmd_vel -v
+```
+
+**Robot B — Tab 2** (separate SSH session to Robot B after source setup):
+
+```bash
+ros2 topic echo /robot_a/scan_fixed --once --field header
+ros2 topic info /cmd_vel -v
+```
+
+Both map topics published approximately **0.2 Hz**. The cross-robot scan headers were observed on each side. The original raw LiDAR topics are `/robot_a/scan` and `/robot_b/scan`; normalized versions are `/robot_a/scan_fixed` and `/robot_b/scan_fixed`. Robot A and Robot B's TF trees remained disconnected; see the experiment guide.
+
+### Safe manual controls used during November 26 (historical; robots powered down)
+
+**Robot A — Tab 3**:
+
+```bash
+ssh wheeltec@192.168.0.224
+source /opt/ros/humble/setup.bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/robot_a/cmd_vel
+```
+
+**Robot B — Tab 3**:
+
+```bash
+ssh wheeltec@192.168.0.138
+source /opt/ros/humble/setup.bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=/cmd_vel
+```
+
+Do not drive both robots simultaneously. Before any future physical motion, verify actual command subscribers, safe clearance and operator control. The November 26 test used a small Robot A turn followed by `k` to stop. Manual movement is **not** autonomous exploration.
+
+### Live fusion on Robot A — Tab 4 (historical run)
+
+```bash
+ssh wheeltec@192.168.0.224
+source /opt/ros/humble/setup.bash
+python3 ~/dual_slam_live_fusion_nov26.py
+```
+
+Inputs: `/robot_a/map`, `/robot_b/map`. Output: `/dual_slam/fused_map_preview`, a `nav_msgs/msg/OccupancyGrid` in `robot_a/map`. Repeated every 5 seconds using fixed experimental B→A alignment **−2.5°, (0.000, 0.700) m**. This output is **not** navigation-ready and publishes no connecting TF. In RViz, select fixed frame `robot_a/map` and add a Map display for `/dual_slam/fused_map_preview`.
+
+### Save the live fused map (historical command, Robot A — Tab 2)
+
+```bash
+mkdir -p ~/dual_slam_nov26_results
+ros2 run nav2_map_server map_saver_cli \
+  -t /dual_slam/fused_map_preview \
+  -f ~/dual_slam_nov26_results/live_fused_map_after_movement \
+  --ros-args -p save_map_timeout:=15.0 \
+  -p map_subscribe_transient_local:=false
+```
+
+The before/after saved maps are **already** committed in `results/nov26/`. Do not overwrite them. To inspect the *archived* data on a machine with ROS 2:
+
+```bash
+ros2 bag info datasets/nov26/dual_slam_combined_20261126
+ros2 bag info datasets/nov26/robot_b_lidar_20261126
+```
+
+Git LFS is required for full `.db3` recording files (`git lfs pull`). ROS 2 command examples cannot run in ordinary Windows PowerShell unless a ROS 2 environment is provided.
+
+### Re-run only offline registration on Windows, from repo root
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\dual_slam_fusion_nov26.py
+```
+
+Requires NumPy, SciPy, OpenCV, PyYAML. It reads `datasets/nov26/dual_slam_nov26_maps/` and writes generated images/maps to the current working directory; committed reference results are in `results/nov26/`. See experiment guide for installation, scores, scope and limitations.
 
 ---
 
